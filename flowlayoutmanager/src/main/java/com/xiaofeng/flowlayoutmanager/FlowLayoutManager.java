@@ -37,9 +37,18 @@ public class FlowLayoutManager extends RecyclerView.LayoutManager {
     private ViewTreeObserver.OnGlobalLayoutListener globalLayoutListener;
 
     public FlowLayoutManager() {
-        flowLayoutOptions = new FlowLayoutOptions();
+
+        this(0);
     }
 
+    /**
+     *
+     * @param maxLineCount   max line to show
+     */
+    public FlowLayoutManager(int maxLineCount) {
+        flowLayoutOptions = new FlowLayoutOptions();
+        flowLayoutOptions.maxLineCount=maxLineCount;
+    }
     @Override
     public RecyclerView.LayoutParams generateDefaultLayoutParams() {
         return new RecyclerView.LayoutParams(RecyclerView.LayoutParams.WRAP_CONTENT, RecyclerView.LayoutParams.WRAP_CONTENT);
@@ -93,12 +102,19 @@ public class FlowLayoutManager extends RecyclerView.LayoutManager {
 
         // track before removed and after removed layout in same time, to make sure only add items at
         // bottom that visible after item removed.
+        int lineCount=0;
         while (currentItemPosition < state.getItemCount()) {
             View child = recycler.getViewForPosition(currentItemPosition);
             boolean childRemoved = isChildRemoved(child);
             // act as removed view still there, to calc new items location.
             newline = calcChildLayoutRect(child, x, y, height, beforeContext, rect);
             if (newline) {
+                lineCount++;
+                if(afterContext.layoutOptions.maxLineCount>0&&lineCount>=afterContext.layoutOptions.maxLineCount)
+                {
+                    break;
+                }
+
                 point = startNewline(rect, beforeContext);
                 x = point.x;
                 y = point.y;
@@ -152,11 +168,22 @@ public class FlowLayoutManager extends RecyclerView.LayoutManager {
         LayoutContext layoutContext = LayoutContext.fromLayoutOptions(flowLayoutOptions);
 
         LinkedList<LayoutManagerAppender> appenders = new LinkedList<>();
-
+        int lineCount=0;
+        //check  if  over maxLineCount;
+        boolean isOverMaxLine=false;
         for (int i = firstChildAdapterPosition; i < itemCount; i++) {
             View child = recycler.getViewForPosition(i);
             newLine = calcChildLayoutRect(child, x, y, height, layoutContext, rect);
-            if (!childVisible(false, rect)) {
+
+            if (newLine) {
+                lineCount++;
+                if (layoutContext.layoutOptions.maxLineCount > 0 && lineCount >= layoutContext.layoutOptions.maxLineCount ) {
+                    isOverMaxLine=true;
+                }
+            }
+
+            boolean shouldLayout = !isOverMaxLine&&childVisible(false, rect);
+            if (!shouldLayout) {
                 recycler.recycleView(child);
                 layoutAppenders(x, appenders);
                 appenders.clear();
@@ -168,6 +195,10 @@ public class FlowLayoutManager extends RecyclerView.LayoutManager {
             }
 
             if (newLine) {
+
+
+
+
                 LayoutManagerAppender last = appenders.removeLast();
                 layoutAppenders(x, appenders);
                 appenders.clear();
